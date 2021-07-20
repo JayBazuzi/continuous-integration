@@ -1018,8 +1018,8 @@ def execute_commands(
     tmpdir = tempfile.mkdtemp()
     sc_process = None
     try:
-        if platform == "macos" or platform == "macos_arm64":
-            activate_xcode(task_config)
+        # if platform == "macos" or platform == "macos_arm64":
+            # activate_xcode(task_config)
 
         # If the CI worker runs Bazelisk, we need to forward all required env variables to the test.
         # Otherwise any integration test that invokes Bazel (=Bazelisk in this case) will fail.
