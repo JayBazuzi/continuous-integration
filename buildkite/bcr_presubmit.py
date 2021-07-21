@@ -68,11 +68,12 @@ def get_target_modules():
         ["git", "diff", "main", "--name-only", "--pretty=format:"]
     )
     # Matching modules/<name>/<version>/
-    for s in set(re.findall(r"modules\/[^\/]+\/[^\/]+\/", output.decode("utf-8"))):
-        parts = s.split("/")
-        modules.append((parts[1], parts[2]))
+    for line in output.decode("utf-8").split():
+        s = re.match(r"modules\/([^\/]+)\/([^\/]+)\/", line)
+        if s:
+            modules.append(s.groups())
 
-    return modules
+    return list(set(modules))
 
 
 def get_presubmit_yml(module_name, module_version):
