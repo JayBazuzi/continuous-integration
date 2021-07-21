@@ -19,6 +19,7 @@ from pathlib import Path
 import bazelci
 import argparse
 import os
+import re
 import sys
 import shutil
 import subprocess
@@ -49,18 +50,29 @@ class BcrPresubmitException(Exception):
     pass
 
 
-def get_module_name_and_version():
-    if "MODULE_NAME" in os.environ and "MODULE_VERSION" in os.environ:
-        return os.environ["MODULE_NAME"], os.environ["MODULE_VERSION"]
+def get_target_modules():
+    modules = []
+    if "MODULE_NAME" in os.environ:
+        name = os.environ["MODULE_NAME"]
+        if "MODULE_VERSION" in os.environ:
+            modules.append((name, os.environ["MODULE_VERSION"]))
+        elif "MODULE_VERSIONS" in os.environ:
+            for version in os.environ["MODULE_VERSIONS"].split(","):
+                modules.append((name, version))
 
-    branch_name = os.environ["BUILDKITE_BRANCH"]
+    if modules:
+        return modules
 
-    if "@" in branch_name:
-        return branch_name.split("@")
+    # Get the list of changed files
+    output = subprocess.check_output(
+        ["git", "show", "--name-only", "--pretty=format:"]
+    )
+    # Matching modules/<name>/<version>/
+    for s in set(re.findall(r"modules\/[^\/]+\/[^\/]+\/", output.decode("utf-8"))):
+        parts = s.split("/")
+        modules.append((parts[1], parts[2]))
 
-    raise BcrPresubmitException(
-        "Cannot identify target module version. Either set 'MODULE_NAME' and 'MODULE_VERSION'"
-        + " env vars or change your branch name to <module name>@<version>.")
+    return modules
 
 
 def get_presubmit_yml(module_name, module_version):
@@ -71,11 +83,10 @@ def get_task_config(module_name, module_version):
     return bazelci.load_config(http_url = None, file_config = get_presubmit_yml(module_name, module_version), allow_imports = False)
 
 
-def print_bcr_presubmit_pipeline(module_name, module_version, task_config):
-    pipeline_steps = []
+def add_presubmit_jobs(module_name, module_version, task_config, pipeline_steps):
     for task_name in task_config:
         platform_name = bazelci.get_platform_for_task(task_name, task_config)
-        label = bazelci.PLATFORMS[platform_name]["emoji-name"] + " Testing for {0}@{1}".format(
+        label = bazelci.PLATFORMS[platform_name]["emoji-name"] + "Test {0}@{1}".format(
             module_name, module_version
         )
         command = (
@@ -89,7 +100,6 @@ def print_bcr_presubmit_pipeline(module_name, module_version, task_config):
         )
         commands = [bazelci.fetch_bazelcipy_command(), fetch_bcr_presubmit_py_command(), command]
         pipeline_steps.append(bazelci.create_step(label, commands, platform_name))
-    print(yaml.dump({"steps": pipeline_steps}))
 
 
 def scratch_file(root, relative_path, lines=None):
@@ -152,9 +162,12 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
     if args.subparsers_name == "bcr_presubmit":
-        module_name, module_version = get_module_name_and_version()
-        configs = get_task_config(module_name, module_version)
-        print_bcr_presubmit_pipeline(module_name, module_version, configs.get("tasks", None))
+        modules = get_target_modules()
+        pipeline_steps = []
+        for module_name, module_version in modules:
+            configs = get_task_config(module_name, module_version)
+            add_presubmit_jobs(module_name, module_version, configs.get("tasks", None), pipeline_steps)
+        print(yaml.dump({"steps": pipeline_steps}))
 
     elif args.subparsers_name == "runner":
         repo_location = create_test_repo(args.module_name, args.module_version, args.task)
