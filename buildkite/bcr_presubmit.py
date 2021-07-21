@@ -65,7 +65,7 @@ def get_target_modules():
 
     # Get the list of changed files
     output = subprocess.check_output(
-        ["git", "show", "--name-only", "--pretty=format:"]
+        ["git", "diff", "main", "--name-only", "--pretty=format:"]
     )
     # Matching modules/<name>/<version>/
     for s in set(re.findall(r"modules\/[^\/]+\/[^\/]+\/", output.decode("utf-8"))):
