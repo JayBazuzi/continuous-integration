@@ -21,9 +21,7 @@ import argparse
 import os
 import re
 import sys
-import shutil
 import subprocess
-import tempfile
 import time
 import yaml
 
@@ -61,7 +59,7 @@ def get_target_modules():
                 modules.append((name, version))
 
     if modules:
-        return modules
+        return list(set(modules))
 
     # Get the list of changed files
     output = subprocess.check_output(
@@ -125,8 +123,8 @@ def create_test_repo(module_name, module_version, task):
     scratch_file(root, "BUILD")
     scratch_file(root, "MODULE.bazel", ["bazel_dep(name = '%s', version = '%s')" % (module_name, module_version)])
     scratch_file(root, ".bazelrc", [
-        "build --registry=%s" % BCR_REPO_DIR.as_uri(),
         "build --experimental_enable_bzlmod",
+        "build --registry=%s" % BCR_REPO_DIR.as_uri(),
     ])
     return root
 
@@ -168,8 +166,9 @@ def main(argv=None):
         for module_name, module_version in modules:
             configs = get_task_config(module_name, module_version)
             add_presubmit_jobs(module_name, module_version, configs.get("tasks", None), pipeline_steps)
+        if not pipeline_steps:
+            bazelci.eprint("No target modules detected in this branch!")
         print(yaml.dump({"steps": pipeline_steps}))
-
     elif args.subparsers_name == "runner":
         repo_location = create_test_repo(args.module_name, args.module_version, args.task)
         return run_test(repo_location, args.module_name, args.module_version, args.task)
