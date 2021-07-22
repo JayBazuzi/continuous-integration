@@ -87,7 +87,7 @@ def get_task_config(module_name, module_version):
 def add_presubmit_jobs(module_name, module_version, task_config, pipeline_steps):
     for task_name in task_config:
         platform_name = bazelci.get_platform_for_task(task_name, task_config)
-        label = bazelci.PLATFORMS[platform_name]["emoji-name"] + "Test {0}@{1}".format(
+        label = bazelci.PLATFORMS[platform_name]["emoji-name"] + " {0}@{1}".format(
             module_name, module_version
         )
         command = (
